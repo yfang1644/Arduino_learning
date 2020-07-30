@@ -1,0 +1,271 @@
+软件下载
+https://www.arduino.cc/download.php?f=/arduino-nightly-windows.zip
+
+==================== DAY 1 =====================
+安装软件
+安装驱动
+设置软件环境
+创建/打开项目
+保存
+
+程序结构 setup()/loop()
+打开串口监视器
+连线
+第一个例子
+Serial.begin()
+Serial.print()
+
+程序1. 打印
+void setup()
+{
+    Serial.begin(9600);
+}
+void loop()
+{
+    Serial.println("hello");
+    delay(1000);
+}
+
+任务1. 打印变量
+
+
+变量声明/赋值
+pinMode(pin, OUTPUT)
+digitalWrite(pin, HIGH)
+点亮板载LED
+
+程序2. 闪烁
+void setup()
+{
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, HIGH);
+}
+void loop()
+{
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(1000);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(1000);
+}
+
+任务2. 改变闪烁节奏
+
+==================== DAY 2 =====================
+
+介绍Ardurino
+二进制
+函数
+自己定义函数
+条件语句 
+
+高低电平
+公共端 (地)
+面包板
+LED
+串联电阻
+点亮外接LED
+
+程序1. 使用其他引脚
+int pin = 8;
+void setup()
+{
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, HIGH);
+}
+void loop()
+{
+    digitalWrite(pin, HIGH);
+    delay(1000);
+    digitalWrite(pin, LOW);
+    delay(1000);
+}
+
+任务1. 2个LED交替闪烁
+
+程序2. 用串口监视器输入控制
+void setup()
+{
+    pinMode(pin, OUTPUT);
+    Serial.begin(9600);
+}
+void loop()
+{
+    int b;
+    if (Serial.available()) {
+        b = Serial.read();
+    }
+    if (b == 0) {
+        digitalWrite(pin, LOW);
+    } else {
+        digitalWrite(pin, HIGH);
+    }
+}
+
+任务2. 控制2个LED
+==================== DAY 3 =====================
+循环结构 for/while/do/break/continue
+(数组)
+
+点亮多个LED
+程序1. 轮流点亮4个LED
+void setup()
+{
+    ....
+}
+void loop()
+{
+    int i;
+    for (i = 0; i < 4; i++)
+        digitalWrite(pin[i], LOW);
+
+    for (i = 0; i < 4; i++) {
+        digitalWrite(pin[i], HIGH);
+        delay(500);
+    }
+}
+
+
+程序2. 移位方法
+void loop()
+{
+    int t = pin[0]
+    for (i = 0; i < 3; i++)
+        pin[i] = pin[i+1];
+    pin[3] = t;
+    for(i = 0; i < 4; i++)
+        digitalWrite(pin[i], HIGH);
+
+    delay(1000);
+}
+
+三色灯
+
+任务1.通过串口监控器控制三色LED
+
+(课外作业：跑马灯---来回闪烁)
+
+输入/输出
+(上拉/下拉)禁止短路
+按键
+==================== DAY 4 =====================
+从软循环到 PWM
+analogWrite(pin, val)
+可用 PWM 引脚
+
+任务1. 改变闪烁节奏(小于100ms)，改变高低电平时长
+
+程序1. PWM
+void setup()
+{
+    analogWrite(pin, brightness);
+}
+void loop()
+{
+    
+}
+任务2. 渐变亮度
+任务3. 变色
+
+用按键控制声音
+程序2.
+
+void setup()
+{
+    pinMode(button, INPUT);
+    pinMode(led, OUTPUT);
+}
+void loop()
+{
+    keyval = digitalRead(button);
+    if (keyval == HIGH) {
+        digitalWrite(led, HIGH);
+    } else {
+        digitalWrite(led, LOW);
+    }
+}
+==================== DAY 5 =====================
+
+模拟输入
+温湿度传感器
+
+程序1. 读传感器，串口监视器打印结果
+
+
+数码管
+下载数码管库、安装
+http://downloads.arduino.cc/libraries/github.com/arkhipenko/TM1650-1.1.0.zip
+
+TM1650 函数调用
+程序1. 显示
+TM1650 d;
+void setup()
+{
+    Wire.begin();
+    d.init();
+}
+
+void loop()
+{
+    d.displayOn();
+    d.displayString("____");
+    d.setBrightness(TM1650_MIN_BRIGHT);
+    // brightness from 0 to 7
+    d.displayOn();
+    delay(100);
+
+    d.displayString("1234");
+    delay(2000);
+    d.displayString("ABCD")
+    d.displayOff();
+}
+================== DAY 6 =====================
+
+灯带原理
+下载灯带库
+https://github.com/adafruit/Adafruit_NeoPixel/archive/1.5.0.zip
+
+
+灯带库函数
+
+程序1. 
+#include <Adafruit_NeoPixel.h>
+
+#define LED_PIN    6    // 可用引脚 3/5/6/9/10/11
+#define LED_COUNT  30   // how many LEDs
+
+void setup()
+{
+    Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+    strip.begin();           // 初始化
+    strip.show();            
+    strip.setBrightness(50); // 亮度 0--255
+}
+
+void loop()
+{
+    strip.setPixelColor(0, strip.Color(255,0,0)); // Set pixel 1 to RED
+    strip.setPixelColor(1, strip.Color(0,255,0)); // Set pixel 1 to GREEN
+    strip.setPixelColor(2, strip.Color(0,0,255)); // Set pixel 1 to BLUE
+    strip.show();
+}
+
+任务1. 全部点亮 (颜色随意)
+任务2. 逐个点亮
+程序2. 变色
+
+int r = 0; g = 0; b = 255;
+void loop()
+{
+    int c;
+    r = r + 10;
+    if (r > 255)  r = 0;
+    b = b - 10;
+    if (b < 0)  b = 255;
+    for (c = 0; c < LED_COUNT; c++)
+        strip.setPixelColor(c, strip.Color(r,g,b));
+    delay(50);
+}
+
+任务3. 自由设计
+

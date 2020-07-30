@@ -1,0 +1,131 @@
+Arduino Uno的5，6，9，10，3，11接口可以通过简单语句
+   analogWrite(pin, dutyCycle)
+来实现一个指定占空比的PWM。其中pin的值选择（5，6，9，10，3，11），
+dutyCycle的值在0～255之间，0为占空比0%，255为占空比100%。
+但是这种方式PWM信号的频率是固定的默认值，大约1000Hz左右（16MHz/64/256）。
+
+其次，手动切换高电平和低电平，再在中间加入delay函数，可以实现自定义频率的PWM：
+
+void setup()
+{
+    pinMode(13, OUTPUT);
+
+}
+
+void loop()
+{
+    int f = 1000;       // 1000Hz
+    digitalWrite(13, HIGH);
+    delayMicroseconds(100); // Approximately 10% duty cycle@1kHz
+    digitalWrite(13, LOW);
+    delayMicroseconds(f - 100);
+}
+
+但是，这种操作需要CPU全神贯注的查数，任何其他的进程的干扰会导致输出的信号
+频率不准。
+
+综上，需要底层的手段来控制Arduino实现PWM的频率调节。
+调节Arduino里的时钟频率
+
+Arduino Uno里有三个定时器：Timer0，Timer1，Timer2。 三个定时器都可以自定义
+调整频率，但是各有特点。Timer0 负责控制 delay 等函数，动了 Timer0 的频率
+会导致计时函数不准；Timer1 的计数器是16位的，和 Timer0，Timer2 的8位计数器
+不太一样；Timer2 的频率可调的档位更多，因为它有7档预除数，下文会进一步解释。
+这里选择Timer2进行调节操作，先上代码：
+
+void setup() {
+    // put your setup code here, to run once:
+
+    pinMode(3, OUTPUT); 
+    pinMode(11, OUTPUT); 
+      
+    //Set Timer2 to varying top limit fast PWM mode
+    TCCR2A = _BV(COM2A0) | _BV(COM2B1) | _BV(WGM21) | _BV(WGM20);
+    //another way to set prescaler CS2=fff
+    TCCR2B = _BV(WGM22) | _BV(CS22) | _BV(CS21) | _BV(CS20);
+
+    OCR2A = 155; //Top value A
+    OCR2B = 30; //Toggle value B, Output at pin 3
+     
+    //CS2  Divisor  Frequency
+    //001    1        31372.55
+    //010    8        3921.16
+    //011    32       980.39
+    //100    64       490.20   <--DEFAULT
+    //101    128      245.10
+    //110    256      122.55
+    //111    1024     30.64
+}
+
+void loop() {
+    // put your main code here, to run repeatedly:
+}
+
+由以上代码可见，需要的设置分为三个部分：pinMode，TCCR2A/B，OCR2A/B（这里的2
+是因为选择了Timer2）。
+
+pinMode：
+    Timer2所控制的管脚是pin11和pin3, Timer0控制5，6, Timer1控制9，10
+
+OCR2A/B：
+    每个Timer里都有一个计数器和两个比较寄存器。Timer2里计数器从0数到255,
+    然后归0继续从头数；Timer2的两个比较寄存器分别为OCR2A和OCR2B。
+
+    比较寄存器就是你设置一个小于255的数，比如155。当计数器数到0时输出为
+    高电平，数到155的时候改变输出为低电平。这样就实现了占空比的调节。
+    在普通模式下（Fast PWM），OCR2A控制pin11的占空比，OCR2B控制pin3的
+    占空比。
+
+TCCR2A/B：
+    理解了Timer的原理，下面来讨论这个PWM的频率。ATmega328 晶振频率为16MHz。
+    Timer计数器的频率会在这个基础上除以一个预除数，Timer2可选择的预除数有
+    1，8，32，64，128，256，1024。也就是说，如果预除数设为64（默认），计数器
+    计数的频率是16MHz/64 。又因为计数器要数256下才会完成一个PWM周期，所以
+    输出PWM的频率是16MHz/64/256，约等于1000Hz。若果要获得最低的输出频率，
+    预除数要选1024，得到的PWM是61Hz。
+
+    TCCR2A/B就是来控制Timer2计数器的模式与预除数的大小的，由于是分位赋值，
+    看起来怪怪的，我来解释一下。先说CS2位，这个就是来控制Timer2计数器预除数的：
+    _BV(CS22) | _BV(CS21) | _BV(CS20) 的三部分由逻辑按位或“|”链接；每个BV
+    是按位赋值（bit value）的意思；_BV(CS22 )= 在CS2里，1<<2(把1左移2位)
+    = 00000100；得到三部分分别是00000100，00000010，00000001；按位或最终得到
+    0111；查代码里的表得到对应的预除数是1024。
+
+模式选择：
+    现在的问题是，我需要的是100Hz，不是1024预除数下的61Hz，如何实现？这就
+    需要控制计数器模式来微调频率。
+
+
+    这张图中的模式可以在原有的fast PWM基础上提高频率，得到图中OCnB所示的信号。
+    这个模式叫做Varying the timer top limit: fast PWM。比较寄存器OCR2A在这里
+    不再控制管脚11的占空比，而是设定一个计数器的上限：计数器不用数到255而是
+    达到OCR2A就可以归零。OCR2B依然控制管脚3的占空比。
+
+    为了让pin11有活干，这里设置TCCR2A里的COM2A位=01(表示数到极限就把pin11的
+    电平反转，本应用不需要)，COM2B位=10（表示pin3输出非反转PWM）。
+
+    那么是如何选择模式的？剩下的WGM2位就是确定模式的。在fast PWM模式下，
+    WGM2位是011，Varying the timer top limit: fast PWM模式下，WGM2位是111。
+    所以需要_BV(WGM22) | _BV(WGM21) | _BV(WGM20)。处于我所不理解的原因，这个赋值可以被分为两部分分别写在TCCR2A和TCCR2B里。有明白的高手麻烦留个言解释一下。
+
+频率计算
+
+    到这里，所有设置已经解释完。下面来计算一下100Hz输出的PWM具体参数应该设为多少。
+    pin3的输出频率=16MHz / 1024/ （OCR2A + 1），因此100Hz对应的OCR2A=155。
+    （+1是因为fast PWM是从0开始数到上限值）
+    占空比 = （OCR2B+1）/ （OCR2A+1），所以：
+    占空比  OCR2B值
+    20%     30
+    25%     38
+    33%     51
+    50%     77
+    100%    155
+总结
+
+至此，本文介绍了如何使用Arduino的Timer时钟功能自定义设置PWM的频率和占空比。
+简要解释了Timer的选择，输出管脚的确定，比较寄存器的设定，计数器的预除数选择和模式选择。最后演示了100HzPWM的个参数计算过程。
+
+http://www.diy-robots.com/?p=852
+http://www.righto.com/2009/07/secrets-of-arduino-pwm.html
+http://playground.arduino.cc/Main/TimerPWMCheatsheet
+http://www.geek-workshop.com/thread-25012-1-1.html
